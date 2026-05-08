@@ -1,11 +1,19 @@
 "use client";
 import { db, Event } from "./db";
+import type { ProjectedJob } from "../lib/types";
 
 function project(events: Event[]) {
-  const jobs = new Map<string, any>();
+  const jobs = new Map<string, ProjectedJob>();
   for (const e of events) {
     if (e.type === "JOB_CREATED") {
-      jobs.set(e.aggregateId, { id: e.aggregateId, name: e.payload.name, status: "open", version: e.nextVersion });
+      const name =
+        typeof e.payload === "object" &&
+        e.payload !== null &&
+        "name" in e.payload &&
+        typeof (e.payload as { name: unknown }).name === "string"
+          ? (e.payload as { name: string }).name
+          : "Unnamed job";
+      jobs.set(e.aggregateId, { id: e.aggregateId, name, status: "open", version: e.nextVersion });
     }
     if (e.type === "JOB_COMPLETED") {
       const job = jobs.get(e.aggregateId);
@@ -33,7 +41,7 @@ export async function createJob(name: string) {
   });
 }
 
-export async function completeJob(job: any) {
+export async function completeJob(job: Pick<ProjectedJob, "id" | "version">) {
   await db.events.add({
     id: crypto.randomUUID(),
     type: "JOB_COMPLETED",

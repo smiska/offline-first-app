@@ -1,14 +1,15 @@
 import { pool } from "./db";
+import type { EventInput, SyncConflict, SyncResult } from "./types";
 
 /**
  * Accepts events transactionally and enqueues ERP jobs.
  * This is the core Phase 5 architectural decision:
  * external ERP calls are async jobs, not inline sync work.
  */
-export async function appendEvents(events: any[]) {
+export async function appendEvents(events: EventInput[]): Promise<SyncResult> {
   const client = await pool.connect();
   const accepted: string[] = [];
-  const conflicts: any[] = [];
+  const conflicts: SyncConflict[] = [];
 
   try {
     await client.query("BEGIN");

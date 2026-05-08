@@ -1,16 +1,8 @@
 "use client";
 import Dexie, { Table } from "dexie";
+import type { EventInput } from "../lib/types";
 
-export type Event = {
-  id: string;
-  type: "JOB_CREATED" | "JOB_COMPLETED";
-  aggregateId: string;
-  baseVersion: number;
-  nextVersion: number;
-  payload: any;
-  timestamp: number;
-  synced?: boolean;
-};
+export type Event = EventInput;
 
 class DB extends Dexie {
   events!: Table<Event, string>;

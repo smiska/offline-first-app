@@ -3,22 +3,42 @@
 import { useEffect, useState } from "react";
 import { createJob, completeJob, getJobs } from "../client-db/jobs";
 import { sync } from "../client-db/sync";
+import type { IntegrationJobRow, ProjectedJob, SyncResult } from "../lib/types";
 
 export default function AppClient() {
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [queue, setQueue] = useState<any[]>([]);
-  const [syncResult, setSyncResult] = useState<any>(null);
+  const [jobs, setJobs] = useState<ProjectedJob[]>([]);
+  const [queue, setQueue] = useState<IntegrationJobRow[]>([]);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
+    setError(null);
     setJobs(await getJobs());
-    setQueue(await fetch("/api/integration-jobs").then(r => r.json()));
+    const response = await fetch("/api/integration-jobs");
+    if (!response.ok) {
+      const text = await response.text();
+      const message = `Queue load failed: ${response.status} ${text}`;
+      setError(message);
+      throw new Error(message);
+    }
+    setQueue((await response.json()) as IntegrationJobRow[]);
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh().catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(message);
+    });
+  }, []);
 
   async function doSync() {
-    setSyncResult(await sync());
-    await refresh();
+    setError(null);
+    try {
+      setSyncResult(await sync());
+      await refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
   }
 
   return (
@@ -44,6 +64,7 @@ export default function AppClient() {
 
       <h2>Last sync</h2>
       <pre>{JSON.stringify(syncResult, null, 2)}</pre>
+      {error && <pre style={{ color: "crimson" }}>{error}</pre>}
 
       <h2>ERP queue</h2>
       <pre>{JSON.stringify(queue, null, 2)}</pre>
