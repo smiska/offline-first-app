@@ -7,6 +7,8 @@ Install dependencies:
 pnpm install
 ```
 
+If you prefer npm, equivalent commands work with `npm run <script>`.
+
 Start Next.js dev server:
 ```bash
 pnpm dev
@@ -28,6 +30,11 @@ Start background worker:
 ```bash
 pnpm run worker
 ```
+
+## Environment Variables
+
+- `DATABASE_URL`: Postgres connection string (default: `postgres://erp:erp@localhost:5432/offline_erp`)
+- `ERP_FAILURE_RATE`: mock ERP failure ratio used by the worker (default: `0.35`)
 
 ## Troubleshooting
 

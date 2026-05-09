@@ -1,5 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Immutable event log accepted from client sync.
 CREATE TABLE IF NOT EXISTS events (
   id UUID PRIMARY KEY,
   type TEXT NOT NULL,
@@ -11,11 +12,13 @@ CREATE TABLE IF NOT EXISTS events (
   received_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Latest known version per aggregate for optimistic concurrency checks.
 CREATE TABLE IF NOT EXISTS aggregate_versions (
   aggregate_id TEXT PRIMARY KEY,
   version INTEGER NOT NULL
 );
 
+-- Outbound integration queue consumed by worker with retry/dead-letter policy.
 CREATE TABLE IF NOT EXISTS integration_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id UUID NOT NULL REFERENCES events(id),
@@ -30,5 +33,6 @@ CREATE TABLE IF NOT EXISTS integration_jobs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Supports efficient worker polling for ready pending jobs.
 CREATE INDEX IF NOT EXISTS idx_integration_jobs_pending
 ON integration_jobs(status, next_attempt_at);

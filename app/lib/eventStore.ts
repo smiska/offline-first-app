@@ -5,6 +5,11 @@ import type { EventInput, SyncConflict, SyncResult } from "./types";
  * Accepts events transactionally and enqueues ERP jobs.
  * This is the core Phase 5 architectural decision:
  * external ERP calls are async jobs, not inline sync work.
+ *
+ * Invariants:
+ * - Duplicate event IDs are accepted idempotently (safe client replay).
+ * - Version conflicts are reported and skipped without partial writes.
+ * - Event persistence and integration job enqueue are atomic per transaction.
  */
 export async function appendEvents(events: EventInput[]): Promise<SyncResult> {
   const client = await pool.connect();
@@ -28,6 +33,7 @@ export async function appendEvents(events: EventInput[]): Promise<SyncResult> {
       const serverVersion = versionResult.rowCount ? versionResult.rows[0].version : 0;
 
       if (event.baseVersion !== serverVersion) {
+        // Conflict events are intentionally not written nor enqueued.
         conflicts.push({ eventId: event.id, aggregateId: event.aggregateId, serverVersion, clientBaseVersion: event.baseVersion });
         continue;
       }

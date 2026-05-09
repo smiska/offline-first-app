@@ -10,12 +10,13 @@ Adds:
 Core idea:
 `/api/sync` stores accepted domain events and enqueues ERP jobs in the same DB transaction.
 ERP calls happen later in `npm run worker`.
+You can run the same scripts with `pnpm run ...`.
 
 Run:
 ```bash
 docker compose up -d
-npm install
-npm run migrate
-npm run dev
-npm run worker
+pnpm install
+pnpm run migrate
+pnpm run dev
+pnpm run worker
 ```

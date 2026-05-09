@@ -1,10 +1,11 @@
 import pg from "pg";
+import { pathToFileURL } from "node:url";
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || "postgres://erp:erp@localhost:5432/offline_erp"
 });
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fakeERP(payload) {
   // Mock external ERP. It randomly fails so retry/DLQ becomes visible.
@@ -15,11 +16,23 @@ async function fakeERP(payload) {
   return { externalId: `ERP-${payload.eventId}` };
 }
 
-function backoff(attempts) {
+/**
+ * Retry delay grows exponentially and is capped to 60 seconds.
+ * Keeping this deterministic makes the worker policy easy to reason about and test.
+ */
+export function backoff(attempts) {
   return Math.min(60, Math.pow(2, attempts));
 }
 
-async function claimJob(client) {
+/**
+ * A job turns dead when the current claim has already reached max attempts.
+ * `attempts` is incremented as part of claim, so this check uses the claimed row.
+ */
+export function shouldMarkDead(job) {
+  return job.attempts >= job.max_attempts;
+}
+
+export async function claimJob(client) {
   const result = await client.query(`
     UPDATE integration_jobs
     SET status='processing', attempts=attempts+1, updated_at=now()
@@ -35,7 +48,11 @@ async function claimJob(client) {
   return result.rows[0];
 }
 
-async function processOne() {
+/**
+ * Claims a single pending job and handles success/retry/dead transitions.
+ * Claiming is done in a short transaction; ERP processing is intentionally outside it.
+ */
+export async function processOne() {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -51,7 +68,7 @@ async function processOne() {
       );
       console.log("succeeded", job.id);
     } catch (e) {
-      const dead = job.attempts >= job.max_attempts;
+      const dead = shouldMarkDead(job);
       await pool.query(
         `UPDATE integration_jobs
          SET status=$1, last_error=$2,
@@ -71,8 +88,15 @@ async function processOne() {
   }
 }
 
-console.log("ERP worker started");
-while (true) {
-  const didWork = await processOne();
-  await sleep(didWork ? 300 : 1500);
+export async function startWorker() {
+  console.log("ERP worker started");
+  while (true) {
+    const didWork = await processOne();
+    await sleep(didWork ? 300 : 1500);
+  }
+}
+
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  await startWorker();
 }

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { pool } from "../../lib/db";
 import type { IntegrationJobRow } from "../../lib/types";
 
+/**
+ * Operational queue visibility endpoint.
+ * Returns newest integration jobs for UI/ops dashboards.
+ */
 export async function GET() {
   try {
     const result = await pool.query<IntegrationJobRow>(
