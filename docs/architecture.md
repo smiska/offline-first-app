@@ -1,31 +1,33 @@
 # Architecture Overview
 
-Key building blocks inferred from `package.json`:
-- Next.js app (`pnpm dev`)
-- Client-side offline storage (Dexie / IndexedDB)
-- PostgreSQL connectivity (`pg`)
-- Node scripts: `migrate` and `worker`
+Key building blocks:
+- Next.js app (API routes + UI)
+- PostgreSQL persistence (`pg`)
+- Transactional event ingestion + integration queue (server-side)
+- Background worker with retry/backoff + DLQ (dead jobs)
 
-## Data Flow (Conceptual)
+## Data Flow (Actual)
 
 ```mermaid
 flowchart LR
-  U["User (Browser)"] --> UI["Next.js UI (React)"]
-  UI --> IDB["IndexedDB (Dexie)"]
-  UI --> API["Next.js Server Routes / SSR"]
-  API --> PG["PostgreSQL (pg)"]
-  W["Worker (scripts/worker.mjs)"] --> PG
-  M["Migrations (scripts/migrate.mjs)"] --> PG
-  W --> IDB
+  C["Client"] --> S["POST /api/sync"]
+  S --> TX["DB Tx (events + aggregate_versions + integration_jobs)"]
+  TX --> PG["PostgreSQL"]
+  W["Worker (scripts/worker.mjs)"] --> CLAIM["Claim pending job (SKIP LOCKED)"]
+  CLAIM --> PG
+  W --> ERP["External ERP (mocked)"]
+  ERP -->|ok| OK["Mark succeeded"]
+  ERP -->|fail| RETRY["Backoff, retry or dead"]
+  OK --> PG
+  RETRY --> PG
 ```
 
 Notes:
-- This diagram is intentionally high-level; the exact runtime boundaries (what runs in browser vs. Node) depend on how `app/` is implemented.
-- If the app uses Next.js Route Handlers, the "API" box maps to those handlers.
-- If the worker does sync, it typically reconciles between IndexedDB state and PostgreSQL state.
+- `/api/sync` persists accepted domain events and enqueues integration work in the same transaction.
+- The worker polls and processes jobs asynchronously with exponential backoff and a dead-letter state (`dead`).
 
 ## Suggested Next Documentation Pass
 
-- Confirm where DB connection is established (search for `pg`, `Pool`, connection strings).
-- Confirm where Dexie schema is defined (search for `new Dexie`, `.version(...)`, `.stores(...)`).
-- Map actual routes / pages from `app/` to the diagram.
+- Add an "API reference" table for `/api/sync`, `/api/integration-jobs`, `/api/integration-jobs/retry`.
+- Describe the event model (`events`, `aggregate_versions`) and job model (`integration_jobs`).
+- Document environment variables and Docker compose setup.

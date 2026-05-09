@@ -3,7 +3,8 @@
   "scripts": {
     "dev": "next dev",
     "migrate": "node scripts/migrate.mjs",
-    "worker": "node scripts/worker.mjs"
+    "worker": "node scripts/worker.mjs",
+    "start:both": "concurrently \"npm run dev\" && \"npm run worker\""
   },
   "dependencies": {
     "dexie": "^3.2.4",
@@ -13,9 +14,10 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.10.9",
     "@types/react": "^18.2.0",
-    "@types/pg": "^8.10.9"
+    "concurrently": "^9.2.1",
+    "typescript": "^5.3.3"
   }
 }
