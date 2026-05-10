@@ -1,5 +1,12 @@
 export type JobEventType = "JOB_CREATED" | "JOB_COMPLETED";
 
+export type EventLocalStatus = "queued" | "pushing" | "pushed" | "conflict" | "error";
+
+export interface EventConflict {
+  serverVersion: number;
+  clientBaseVersion: number;
+}
+
 export interface EventInput {
   id: string;
   type: JobEventType;
@@ -9,6 +16,13 @@ export interface EventInput {
   payload: unknown;
   timestamp: number;
   synced?: boolean;
+
+  // Offline-first outbox state. `synced` means "server acked" and must only be set on 200 OK.
+  localStatus?: EventLocalStatus;
+  pushAttempts?: number;
+  nextPushAt?: string;
+  lastPushError?: string | null;
+  conflict?: EventConflict;
 }
 
 export interface SyncConflict {

@@ -29,6 +29,7 @@ export async function getJobs() {
 
 export async function createJob(name: string) {
   const id = crypto.randomUUID();
+  const nowIso = new Date().toISOString();
   await db.events.add({
     id: crypto.randomUUID(),
     type: "JOB_CREATED",
@@ -37,11 +38,16 @@ export async function createJob(name: string) {
     nextVersion: 1,
     payload: { name },
     timestamp: Date.now(),
-    synced: false
+    synced: false,
+    localStatus: "queued",
+    pushAttempts: 0,
+    nextPushAt: nowIso,
+    lastPushError: null
   });
 }
 
 export async function completeJob(job: Pick<ProjectedJob, "id" | "version">) {
+  const nowIso = new Date().toISOString();
   await db.events.add({
     id: crypto.randomUUID(),
     type: "JOB_COMPLETED",
@@ -50,6 +56,10 @@ export async function completeJob(job: Pick<ProjectedJob, "id" | "version">) {
     nextVersion: job.version + 1,
     payload: {},
     timestamp: Date.now(),
-    synced: false
+    synced: false,
+    localStatus: "queued",
+    pushAttempts: 0,
+    nextPushAt: nowIso,
+    lastPushError: null
   });
 }

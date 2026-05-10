@@ -9,6 +9,10 @@ class DB extends Dexie {
   constructor() {
     super("phase5");
     this.version(1).stores({ events: "id, synced, aggregateId, timestamp" });
+    // Note: boolean fields (like `synced`) are not indexable in IndexedDB/Dexie.
+    this.version(2).stores({
+      events: "id, localStatus, nextPushAt, aggregateId, timestamp"
+    });
   }
 }
 export const db = new DB();

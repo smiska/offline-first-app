@@ -3,18 +3,30 @@
 import { useEffect, useState } from "react";
 import { createJob, completeJob, getJobs } from "../client-db/jobs";
 import { sync } from "../client-db/sync";
-import type { IntegrationJobRow, ProjectedJob, SyncResult } from "../lib/types";
+import { getOutboxEvents, getOutboxSummary, isLocalConnectorMode, retryPushDlq } from "../client-db/localConnector";
+import type { OutboxSummary } from "../client-db/localConnector";
+import type { EventInput, IntegrationJobRow, ProjectedJob, SyncResult } from "../lib/types";
+import { toApiUrl } from "../lib/clientApi";
 
 export default function AppClient() {
   const [jobs, setJobs] = useState<ProjectedJob[]>([]);
   const [queue, setQueue] = useState<IntegrationJobRow[]>([]);
+  const [outbox, setOutbox] = useState<EventInput[]>([]);
+  const [outboxSummary, setOutboxSummary] = useState<OutboxSummary | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     setError(null);
     setJobs(await getJobs());
-    const response = await fetch("/api/integration-jobs");
+    if (isLocalConnectorMode()) {
+      setQueue([]);
+      setOutbox(await getOutboxEvents());
+      setOutboxSummary(await getOutboxSummary());
+      return;
+    }
+
+    const response = await fetch(toApiUrl("/api/integration-jobs"));
     if (!response.ok) {
       const text = await response.text();
       const message = `Queue load failed: ${response.status} ${text}`;
@@ -22,6 +34,8 @@ export default function AppClient() {
       throw new Error(message);
     }
     setQueue((await response.json()) as IntegrationJobRow[]);
+    setOutbox([]);
+    setOutboxSummary(null);
   }
 
   useEffect(() => {
@@ -48,7 +62,14 @@ export default function AppClient() {
         Create offline job
       </button>
       <button onClick={doSync} style={{ marginLeft: 8 }}>Sync</button>
-      <button onClick={async () => { await fetch("/api/integration-jobs/retry", { method: "POST" }); await refresh(); }} style={{ marginLeft: 8 }}>
+      <button onClick={async () => {
+        if (isLocalConnectorMode()) {
+          await retryPushDlq();
+        } else {
+          await fetch(toApiUrl("/api/integration-jobs/retry"), { method: "POST" });
+        }
+        await refresh();
+      }} style={{ marginLeft: 8 }}>
         Retry DLQ
       </button>
 
@@ -66,8 +87,18 @@ export default function AppClient() {
       <pre>{JSON.stringify(syncResult, null, 2)}</pre>
       {error && <pre style={{ color: "crimson" }}>{error}</pre>}
 
-      <h2>ERP queue</h2>
-      <pre>{JSON.stringify(queue, null, 2)}</pre>
+      {isLocalConnectorMode() ? (
+        <>
+          <h2>Outbox (local)</h2>
+          <pre>{JSON.stringify(outboxSummary, null, 2)}</pre>
+          <pre>{JSON.stringify(outbox, null, 2)}</pre>
+        </>
+      ) : (
+        <>
+          <h2>ERP queue</h2>
+          <pre>{JSON.stringify(queue, null, 2)}</pre>
+        </>
+      )}
     </main>
   );
 }
